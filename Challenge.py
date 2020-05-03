@@ -13,12 +13,15 @@ def ETL(wiki,kaggle,rating):
         wiki_movies_raw = json.load(file)
     # Make the json file a DataFrame
     wiki_movies_df = pd.DataFrame(wiki_movies_raw)
-    # Make the columns a list
-    wiki_movies_df.columns.tolist()
     # Find all movies that have a director in 'Director' or 'Directed By' and there is a 'imdb_link'
-    wiki_movies = [movie for movie in wiki_movies_raw
+    try: 
+        wiki_movies = [movie for movie in wiki_movies_raw
                if ('Director' in movie or 'Directed by' in movie)
                    and 'imdb_link' in movie
+                   and 'No. of episodes' not in movie]
+    except:
+        wiki_movies = [movie for movie in wiki_movies_raw
+               if 'imdb_link' in movie
                    and 'No. of episodes' not in movie]
     # Make this into a DataFrame
     wiki_movies_df = pd.DataFrame(wiki_movies)
@@ -27,10 +30,10 @@ def ETL(wiki,kaggle,rating):
         alt_titles = {}
         # combine alternate titles into one list
         for key in ['Also known as','Arabic','Cantonese','Chinese','French',
-                'Hangul','Hebrew','Hepburn','Japanese','Literally',
-                'Mandarin','McCune–Reischauer','Original title','Polish',
-                'Revised Romanization','Romanized','Russian',
-                'Simplified','Traditional','Yiddish']:
+            'Hangul','Hebrew','Hepburn','Japanese','Literally',
+            'Mandarin','McCune–Reischauer','Original title','Polish',
+            'Revised Romanization','Romanized','Russian',
+            'Simplified','Traditional','Yiddish']:
             if key in movie:
                 alt_titles[key] = movie[key]
                 movie.pop(key)
@@ -41,25 +44,82 @@ def ETL(wiki,kaggle,rating):
         def change_column_name(old_name, new_name):
             if old_name in movie:
                 movie[new_name] = movie.pop(old_name)
-        change_column_name('Adaptation by', 'Writer(s)')
-        change_column_name('Country of origin', 'Country')
-        change_column_name('Directed by', 'Director')
-        change_column_name('Distributed by', 'Distributor')
-        change_column_name('Edited by', 'Editor(s)')
-        change_column_name('Length', 'Running time')
-        change_column_name('Original release', 'Release date')
-        change_column_name('Music by', 'Composer(s)')
-        change_column_name('Produced by', 'Producer(s)')
-        change_column_name('Producer', 'Producer(s)')
-        change_column_name('Productioncompanies ', 'Production company(s)')
-        change_column_name('Productioncompany ', 'Production company(s)')
-        change_column_name('Released', 'Release Date')
-        change_column_name('Release Date', 'Release date')
-        change_column_name('Screen story by', 'Writer(s)')
-        change_column_name('Screenplay by', 'Writer(s)')
-        change_column_name('Story by', 'Writer(s)')
-        change_column_name('Theme music composer', 'Composer(s)')
-        change_column_name('Written by', 'Writer(s)')  
+        try:
+            change_column_name('Adaptation by', 'Writer(s)')
+        except: 
+            pass
+        try:
+            change_column_name('Country of origin', 'Country')
+        except:
+            pass
+        try:
+            change_column_name('Directed by', 'Director')
+        except:
+            pass
+        try:
+            change_column_name('Distributed by', 'Distributor')
+        except:
+            pass
+        try:
+            change_column_name('Edited by', 'Editor(s)')
+        except:
+            pass
+        try:
+            change_column_name('Length', 'Running time')
+        except:
+            pass
+        try:
+            change_column_name('Original release', 'Release date')
+        except:
+            pass
+        try:
+            change_column_name('Music by', 'Composer(s)')
+        except:
+            pass
+        try:
+            change_column_name('Produced by', 'Producer(s)')
+        except:
+            pass
+        try:
+            change_column_name('Producer', 'Producer(s)')
+        except:
+            pass
+        try:
+            change_column_name('Productioncompanies ', 'Production company(s)')
+        except:
+            pass
+        try:
+            change_column_name('Productioncompany ', 'Production company(s)')
+        except:
+            pass
+        try:
+            change_column_name('Released', 'Release Date')
+        except:
+            pass
+        try:
+            change_column_name('Release Date', 'Release date')
+        except:
+            pass
+        try:
+            change_column_name('Screen story by', 'Writer(s)')
+        except:
+            pass
+        try:
+            change_column_name('Screenplay by', 'Writer(s)')
+        except:
+            pass
+        try:
+            change_column_name('Story by', 'Writer(s)')
+        except:
+            pass
+        try:
+            change_column_name('Theme music composer', 'Composer(s)')
+        except:
+            pass
+        try:
+            change_column_name('Written by', 'Writer(s)')
+        except:
+            pass  
     
         return movie
     
@@ -138,38 +198,47 @@ def ETL(wiki,kaggle,rating):
     
     wiki_movies_df.drop('Box office', axis=1, inplace=True)
     
-    budget = wiki_movies_df['Budget'].dropna()
-    # converts lists t strings
-    budget = budget.map(lambda x: ' '.join(x) if type(x) == list else x)
-    # removes any values between a dollar sign and hyphen
-    budget = budget.str.replace(r'\$.*[-—–](?![a-z])', '$', regex=True)
-    # using the Box office data, see what is left over
-    matches_form_one = budget.str.contains(form_one, flags=re.IGNORECASE)
-    matches_form_two = budget.str.contains(form_two, flags=re.IGNORECASE)
-    # remove the citation bracket [] inside the budget
-    budget = budget.str.replace(r'\[\d+\]\s*', '')
-    # Same info as the box office data, but just replace the word with budget.  this is called Parse
-    wiki_movies_df['budget'] = budget.str.extract(f'({form_one}|{form_two})', flags=re.IGNORECASE)[0].apply(parse_dollars)
-    wiki_movies_df.drop('Budget', axis=1, inplace=True)
-    # For release date, make a variable that holds the non-null values converting lists to strings
-    release_date = wiki_movies_df['Release date'].dropna().apply(lambda x: ' '.join(x) if type(x) == list else x)
-    # find all the different forms of release dates
-    date_form_one = r'(?:January|February|March|April|May|June|July|August|September|October|November|December)\s[123]\d,\s\d{4}'
-    date_form_two = r'\d{4}.[01]\d.[123]\d'
-    date_form_three = r'(?:January|February|March|April|May|June|July|August|September|October|November|December)\s\d{4}'
-    date_form_four = r'\d{4}'
-    # extract the dates
-    # Make the new columns with the dates
-    wiki_movies_df['release_date'] = pd.to_datetime(release_date.str.extract(
-        f'({date_form_one}|{date_form_two}|{date_form_three}|{date_form_four})')[0], infer_datetime_format=True)
-    # Do the same thing for Running time
-    running_time = wiki_movies_df['Running time'].dropna().apply(lambda x: ' '.join(x) if type(x) == list else x)
-    # extract the values
-    running_time_extract = running_time.str.extract(r'(\d+)\s*ho?u?r?s?\s*(\d*)|(\d+)\s*m')
-    # Turn the strings to numeric and use'coerce' to change the empty cells to NaN
-    running_time_extract = running_time_extract.apply(lambda col: pd.to_numeric(col, errors='coerce')).fillna(0)
-    wiki_movies_df['running_time'] = running_time_extract.apply(lambda row: row[0]*60 + row[1] if row[2] == 0 else row[2], axis=1)
-    wiki_movies_df.drop('Running time', axis=1, inplace=True)
+    try: 
+        budget = wiki_movies_df['Budget'].dropna()
+        # converts lists t strings
+        budget = budget.map(lambda x: ' '.join(x) if type(x) == list else x)
+        # removes any values between a dollar sign and hyphen
+        budget = budget.str.replace(r'\$.*[-—–](?![a-z])', '$', regex=True)
+        # using the Box office data, see what is left over
+        matches_form_one = budget.str.contains(form_one, flags=re.IGNORECASE)
+        matches_form_two = budget.str.contains(form_two, flags=re.IGNORECASE)
+        # remove the citation bracket [] inside the budget
+        budget = budget.str.replace(r'\[\d+\]\s*', '')
+        # Same info as the box office data, but just replace the word with budget.  this is called Parse
+        wiki_movies_df['budget'] = budget.str.extract(f'({form_one}|{form_two})', flags=re.IGNORECASE)[0].apply(parse_dollars)
+        wiki_movies_df.drop('Budget', axis=1, inplace=True)
+    except:
+        pass
+    try: 
+        # For release date, make a variable that holds the non-null values converting lists to strings
+        release_date = wiki_movies_df['Release date'].dropna().apply(lambda x: ' '.join(x) if type(x) == list else x)
+        # find all the different forms of release dates
+        date_form_one = r'(?:January|February|March|April|May|June|July|August|September|October|November|December)\s[123]\d,\s\d{4}'
+        date_form_two = r'\d{4}.[01]\d.[123]\d'
+        date_form_three = r'(?:January|February|March|April|May|June|July|August|September|October|November|December)\s\d{4}'
+        date_form_four = r'\d{4}'
+        # extract the dates
+        # Make the new columns with the dates
+        wiki_movies_df['release_date'] = pd.to_datetime(release_date.str.extract(
+            f'({date_form_one}|{date_form_two}|{date_form_three}|{date_form_four})')[0], infer_datetime_format=True)
+    except:
+        pass
+    try:
+        # Do the same thing for Running time
+        running_time = wiki_movies_df['Running time'].dropna().apply(lambda x: ' '.join(x) if type(x) == list else x)
+        # extract the values
+        running_time_extract = running_time.str.extract(r'(\d+)\s*ho?u?r?s?\s*(\d*)|(\d+)\s*m')
+        # Turn the strings to numeric and use'coerce' to change the empty cells to NaN
+        running_time_extract = running_time_extract.apply(lambda col: pd.to_numeric(col, errors='coerce')).fillna(0)
+        wiki_movies_df['running_time'] = running_time_extract.apply(lambda row: row[0]*60 + row[1] if row[2] == 0 else row[2], axis=1)
+        wiki_movies_df.drop('Running time', axis=1, inplace=True)
+    except:
+        pass
 
     
     kaggle_metadata = pd.read_csv(f'{file_dir}{kaggle}')
@@ -268,6 +337,20 @@ def ETL(wiki,kaggle,rating):
     engine = create_engine(db_string)
     # Move the movies table to sql
     movies_df.to_sql(name='movies', con=engine, if_exists='replace')
+    # create a variable for the number of rows imported
+    rows_imported = 0
+    # get the start_time from time.time()
+    start_time = time.time()
+    for data in pd.read_csv(f'{file_dir}ratings.csv', chunksize=1000000):
 
+        # print out the range of rows that are being imported
+        print(f'importing rows {rows_imported} to {rows_imported + len(data)}...', end='')
+        data.to_sql(name='ratings', con=engine, if_exists='append')
+
+        # increment the number of rows imported by the chunksize
+        rows_imported += len(data)
+    
+        # add elapsed time to final print out
+        print(f'Done. {time.time() - start_time} total seconds elapsed')
 
 ETL('wikipedia.movies.json','movies_metadata.csv','ratings.csv')
